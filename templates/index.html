@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GuardAI — Content Safety Tool</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg: #1a1a1a; --surface: #242424; --border: #333333; --text: #e0e0e0; --muted: #888888; --safe: #d4a017; --spam: #b8860b; --toxic: #ff4d6d; --offensive: #cc8800; --accent: #d4a017; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; padding: 40px 24px; background-image: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212,160,23,0.08) 0%, transparent 60%); }
+    .container { max-width: 900px; margin: 0 auto; }
+    .header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    .logo { width: 42px; height: 42px; background: linear-gradient(135deg, #d4a017, #8b6914); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 20px rgba(212,160,23,0.3); }
+    h1 { font-size: 32px; font-weight: 800; }
+    h1 span { color: var(--accent); }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 32px; margin-top: 4px; }
+    .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; }
+    .stat-number { font-size: 24px; font-weight: 800; color: var(--accent); }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+    .input-section { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 24px; }
+    label { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 10px; }
+    textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; resize: vertical; min-height: 120px; outline: none; transition: border-color 0.2s; }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212,160,23,0.1); }
+    button { margin-top: 14px; background: linear-gradient(135deg, #d4a017, #8b6914); color: #1a1a1a; border: none; padding: 12px 28px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 0 16px rgba(212,160,23,0.3); }
+    button:hover { transform: scale(1.03); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .results { display: none; }
+    .result-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
+    .verdict { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .verdict-badge { padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .badge-safe { background: rgba(212,160,23,0.15); color: var(--safe); border: 1px solid var(--safe); }
+    .badge-spam { background: rgba(184,134,11,0.15); color: var(--spam); border: 1px solid var(--spam); }
+    .badge-toxic { background: rgba(255,77,109,0.15); color: var(--toxic); border: 1px solid var(--toxic); }
+    .badge-offensive { background: rgba(204,136,0,0.15); color: var(--offensive); border: 1px solid var(--offensive); }
+    .reason { color: var(--muted); font-size: 13px; }
+    .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+    .chart-card h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+    .history { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-top: 16px; }
+    .history h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .history-item:last-child { border-bottom: none; }
+    .history-text { color: var(--text); max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .loading { color: var(--accent); font-size: 13px; margin-top: 12px; display: none; }
+    .error-msg { color: var(--toxic); font-size: 13px; margin-top: 12px; display: none; }
+    @media (max-width: 600px) { .charts { grid-template-columns: 1fr; } .stats-bar { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🛡️</div>
+      <h1>Guard<span>AI</span></h1>
+    </div>
+    <p class="subtitle">AI-powered content safety tool — detect toxic, spam, and offensive text instantly</p>
+    <div class="stats-bar">
+      <div class="stat-card"><div class="stat-number" id="total-count">0</div><div class="stat-label">Total Analyzed</div></div>
+      <div class="stat-card"><div class="stat-number" id="safe-count">0</div><div class="stat-label">Safe</div></div>
+      <div class="stat-card"><div class="stat-number" id="flagged-count">0</div><div class="stat-label">Flagged</div></div>
+      <div class="stat-card"><div class="stat-number" id="safe-rate">0%</div><div class="stat-label">Safe Rate</div></div>
+    </div>
+    <div class="input-section">
+      <label>Enter text to analyze</label>
+      <textarea id="text-input" placeholder="Paste any text here to check if it's safe..."></textarea>
+      <button id="analyze-btn" onclick="analyzeText()">🔍 Analyze Text</button>
+      <p class="loading" id="loading">⏳ Analyzing with GuardAI...</p>
+      <p class="error-msg" id="error-msg"></p>
+    </div>
+    <div class="results" id="results">
+      <div class="result-card">
+        <div class="verdict">
+          <span style="font-size:13px;color:var(--muted);font-weight:600;">VERDICT</span>
+          <span class="verdict-badge" id="verdict-badge"></span>
+        </div>
+        <p class="reason" id="reason-text"></p>
+      </div>
+      <div class="charts">
+        <div class="chart-card"><h3>Confidence Breakdown</h3><canvas id="pieChart"></canvas></div>
+        <div class="chart-card"><h3>Category Scores</h3><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="history">
+        <h3>Recent Analyses</h3>
+        <div id="history-list"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    let pieChart, barChart;
+    const history = [];
+    let totalCount = 0, safeCount = 0, flaggedCount = 0;
+    const COLORS = { safe: '#d4a017', spam: '#b8860b', toxic: '#ff4d6d', offensive: '#cc8800' };
+
+    async function analyzeText() {
+      const text = document.getElementById('text-input').value.trim();
+      if (!text) return;
+      const btn = document.getElementById('analyze-btn');
+      const loading = document.getElementById('loading');
+      const errorMsg = document.getElementById('error-msg');
+      btn.disabled = true; loading.style.display = 'block'; errorMsg.style.display = 'none';
+      try {
+        const res = await fetch('/moderate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+        const data = await res.json();
+        loading.style.display = 'none'; btn.disabled = false;
+        if (data.error) { errorMsg.textContent = '❌ Error: ' + data.error; errorMsg.style.display = 'block'; return; }
+        displayResults(data, text);
+      } catch (err) {
+        loading.style.display = 'none'; btn.disabled = false;
+        errorMsg.textContent = '❌ Connection error: ' + err.message; errorMsg.style.display = 'block';
+      }
+    }
+
+    function displayResults(data, text) {
+      document.getElementById('results').style.display = 'block';
+      const badge = document.getElementById('verdict-badge');
+      badge.textContent = data.classification;
+      badge.className = `verdict-badge badge-${data.classification}`;
+      document.getElementById('reason-text').textContent = data.reason;
+      totalCount++;
+      if (data.classification === 'safe') safeCount++; else flaggedCount++;
+      document.getElementById('total-count').textContent = totalCount;
+      document.getElementById('safe-count').textContent = safeCount;
+      document.getElementById('flagged-count').textContent = flaggedCount;
+      document.getElementById('safe-rate').textContent = Math.round((safeCount / totalCount) * 100) + '%';
+      const labels = Object.keys(data.confidence);
+      const values = Object.values(data.confidence).map(v => (v * 100).toFixed(1));
+      const colors = labels.map(l => COLORS[l]);
+      if (pieChart) pieChart.destroy();
+      pieChart = new Chart(document.getElementById('pieChart'), {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }] },
+        options: { plugins: { legend: { labels: { color: '#e0e0e0', font: { size: 12 } } } } }
+      });
+      if (barChart) barChart.destroy();
+      barChart = new Chart(document.getElementById('barChart'), {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 6, borderWidth: 0 }] },
+        options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#888888', callback: v => v + '%' }, grid: { color: '#333333' } }, x: { ticks: { color: '#888888' }, grid: { display: false } } } }
+      });
+      history.unshift({ text: text.substring(0, 50), classification: data.classification });
+      if (history.length > 5) history.pop();
+      document.getElementById('history-list').innerHTML = history.map(h => `
+        <div class="history-item">
+          <span class="history-text">${h.text}${h.text.length === 50 ? '...' : ''}</span>
+          <span class="verdict-badge badge-${h.classification}" style="font-size:11px;padding:4px 12px">${h.classification}</span>
+        </div>`).join('');
+    }
+  </script>
+</body>
+</html>
